@@ -197,6 +197,30 @@ describe('PromptBuilder', () => {
       expect(meta.excluded).toEqual(['b']);
       expect(meta.prompt).toBe('yes\n\nyes');
     });
+
+    it('excludes sections that render empty strings', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(section('a', 'content'))
+        .use(section('b', ''))
+        .use(section('c', 'more'));
+
+      const meta = builder.buildWithMeta(ctx);
+
+      expect(meta.included).toEqual(['a', 'c']);
+      expect(meta.excluded).toEqual(['b']);
+      expect(meta.prompt).toBe('content\n\nmore');
+    });
+
+    it('reports included in priority order', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(section('c', 'third', { priority: 30 }))
+        .use(section('a', 'first', { priority: 10 }))
+        .use(section('b', 'second', { priority: 20 }));
+
+      const meta = builder.buildWithMeta(ctx);
+
+      expect(meta.included).toEqual(['a', 'b', 'c']);
+    });
   });
 
   describe('render receives context', () => {

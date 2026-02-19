@@ -84,18 +84,16 @@ export class PromptBuilder<
    * 5. Joins with separator and trims
    */
   build(ctx: TCtx): string {
-    return this.sections
-      .filter((s) => !s.when || s.when(ctx))
-      .toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
-      .map((s) => s.render(ctx))
-      .filter(Boolean)
-      .join('\n\n')
-      .trim();
+    return this.buildWithMeta(ctx).prompt;
   }
 
   /**
    * Build the prompt and return metadata about which sections were
    * included/excluded. Useful for debugging and logging.
+   *
+   * A section is "excluded" if its `when` guard returns false.
+   * A section is "included" only if it passes the guard and renders
+   * a non-empty string.
    */
   buildWithMeta(ctx: TCtx): {
     prompt: string;
@@ -105,18 +103,28 @@ export class PromptBuilder<
     const included: string[] = [];
     const excluded: string[] = [];
 
-    for (const section of this.sections) {
-      if (!section.when || section.when(ctx)) {
-        included.push(section.id);
-      } else {
-        excluded.push(section.id);
-      }
-    }
+    const rendered = this.sections
+      .filter((s) => {
+        if (s.when && !s.when(ctx)) {
+          excluded.push(s.id);
+          return false;
+        }
+        return true;
+      })
+      .toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+      .map((s) => {
+        const output = s.render(ctx);
+        if (output) {
+          included.push(s.id);
+        } else {
+          excluded.push(s.id);
+        }
+        return output;
+      })
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
 
-    return {
-      prompt: this.build(ctx),
-      included,
-      excluded,
-    };
+    return { prompt: rendered, included, excluded };
   }
 }
