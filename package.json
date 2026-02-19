@@ -32,11 +32,9 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsup",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm publint && pnpm attw",
-    "format": "biome format --write .",
-    "format:check": "biome format .",
-    "lint": "oxlint --deny-warnings",
-    "lint:fix": "oxlint --fix",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm publint && pnpm attw",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -64,7 +62,6 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.17.0",
     "@biomejs/biome": "^1.9.0",
-    "oxlint": "^0.16.0",
     "publint": "^0.3.0",
     "tsup": "^8.4.0",
     "tsx": "^4.21.0",
