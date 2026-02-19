@@ -54,16 +54,17 @@ const prompt = new PromptBuilder<MyContext>()
 
 ## Sections
 
-A section has an `id`, a `render` function, and optionally a `when` guard and `priority`:
+A section has an `id`, a `render` function, and optionally a `when` guard:
 
 ```ts
 const citation: PromptSection<MyContext> = {
   id: 'citation',
   when: (ctx) => ctx.flags.citationEnabled,   // excluded when false
-  priority: 20,                               // lower = earlier (default: 0)
   render: () => 'Always include citations with links when referencing external sources.',
 };
 ```
+
+Sections render in the order you call `.use()`. To reorder, change the call order.
 
 ## Forking
 

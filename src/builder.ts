@@ -78,10 +78,9 @@ export class PromptBuilder<
    * Build the final prompt string.
    *
    * 1. Filters out sections whose `when` guard returns false
-   * 2. Sorts by priority (stable sort preserves insertion order for equal priorities)
-   * 3. Renders each section
-   * 4. Filters out empty strings
-   * 5. Joins with separator and trims
+   * 2. Renders each section
+   * 3. Filters out empty strings
+   * 4. Joins with separator and trims
    */
   build(ctx: TCtx): string {
     return this.buildWithMeta(ctx).prompt;
@@ -111,7 +110,6 @@ export class PromptBuilder<
         }
         return true;
       })
-      .toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
       .map((s) => {
         const output = s.render(ctx);
         if (output) {

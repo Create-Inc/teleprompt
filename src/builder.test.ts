@@ -90,9 +90,9 @@ describe('PromptBuilder', () => {
   describe('ids', () => {
     it('returns section ids in insertion order', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('c', '', { priority: 0 }))
-        .use(section('a', '', { priority: 1 }))
-        .use(section('b', '', { priority: 2 }));
+        .use(section('c', ''))
+        .use(section('a', ''))
+        .use(section('b', ''));
 
       expect(builder.ids()).toEqual(['c', 'a', 'b']);
     });
@@ -150,18 +150,8 @@ describe('PromptBuilder', () => {
     });
   });
 
-  describe('priority ordering', () => {
-    it('sorts sections by priority', () => {
-      const result = new PromptBuilder<Ctx>()
-        .use(section('c', 'third', { priority: 30 }))
-        .use(section('a', 'first', { priority: 10 }))
-        .use(section('b', 'second', { priority: 20 }))
-        .build(ctx);
-
-      expect(result).toBe('first\n\nsecond\n\nthird');
-    });
-
-    it('preserves insertion order for equal priorities', () => {
+  describe('insertion order', () => {
+    it('renders sections in insertion order', () => {
       const result = new PromptBuilder<Ctx>()
         .use(section('a', 'first'))
         .use(section('b', 'second'))
@@ -211,15 +201,15 @@ describe('PromptBuilder', () => {
       expect(meta.prompt).toBe('content\n\nmore');
     });
 
-    it('reports included in priority order', () => {
+    it('reports included in insertion order', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('c', 'third', { priority: 30 }))
-        .use(section('a', 'first', { priority: 10 }))
-        .use(section('b', 'second', { priority: 20 }));
+        .use(section('c', 'third'))
+        .use(section('a', 'first'))
+        .use(section('b', 'second'));
 
       const meta = builder.buildWithMeta(ctx);
 
-      expect(meta.included).toEqual(['a', 'b', 'c']);
+      expect(meta.included).toEqual(['c', 'a', 'b']);
     });
   });
 

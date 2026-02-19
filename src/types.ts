@@ -37,11 +37,4 @@ export interface PromptSection<
    * which removes the section entirely including any separator).
    */
   render: (ctx: TCtx) => string;
-
-  /**
-   * Ordering weight. Lower values appear earlier in the output.
-   * Sections with the same priority preserve insertion order.
-   * @default 0
-   */
-  priority?: number;
 }
