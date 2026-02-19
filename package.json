@@ -1,0 +1,74 @@
+{
+  "name": "teleprompt",
+  "version": "0.1.0",
+  "description": "Composable, declarative prompt builder for LLM system prompts",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
+      }
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm publint && pnpm attw",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "publint": "publint",
+    "attw": "attw --pack . --profile node16",
+    "prepublishOnly": "pnpm check && pnpm build"
+  },
+  "keywords": [
+    "prompt",
+    "llm",
+    "ai",
+    "system-prompt",
+    "prompt-builder",
+    "prompt-composition",
+    "composable"
+  ],
+  "license": "MIT",
+  "packageManager": "pnpm@10.30.0+sha512.2b5753de015d480eeb88f5b5b61e0051f05b4301808a82ec8b840c9d2adf7748eb352c83f5c1593ca703ff1017295bc3fdd3119abb9686efc96b9fcb18200937",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.17.0",
+    "@biomejs/biome": "^1.9.0",
+    "oxlint": "^0.16.0",
+    "publint": "^0.3.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

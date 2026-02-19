@@ -1,0 +1,137 @@
+# teleprompt
+
+Compose LLM system prompts from discrete sections instead of monolithic template literals.
+
+Feature flags, mode variants, and prompt changes stay co-located with their content. Adding a feature flag is one section in one file, not a boolean threaded through 15 function signatures.
+
+```bash
+pnpm add teleprompt
+```
+
+## Quick Start
+
+```ts
+import { PromptBuilder, type PromptContext, type PromptSection } from 'teleprompt';
+
+// Define your context shape
+type MyContext = PromptContext<
+  { webSearchEnabled: boolean },
+  { assistantName: string }
+>;
+
+// Sections are objects with an id and a render function
+const identity: PromptSection<MyContext> = {
+  id: 'identity',
+  render: (ctx) => `You are ${ctx.vars.assistantName}, a helpful AI assistant.`,
+};
+
+const guidelines: PromptSection<MyContext> = {
+  id: 'guidelines',
+  render: () => `# Guidelines
+- Be concise and direct.
+- Cite sources when making factual claims.
+- Ask for clarification when a request is ambiguous.`,
+};
+
+// Feature flags live in the section, not threaded through function signatures
+const webSearch: PromptSection<MyContext> = {
+  id: 'web-search',
+  when: (ctx) => ctx.flags.webSearchEnabled,
+  render: () => `You have access to web search. Use it when the user asks about
+current events or information that may have changed after your training cutoff.`,
+};
+
+// Compose and build
+const prompt = new PromptBuilder<MyContext>()
+  .use(identity)
+  .use(guidelines)
+  .use(webSearch)
+  .build({
+    flags: { webSearchEnabled: true },
+    mode: 'default',
+    vars: { assistantName: 'Atlas' },
+  });
+```
+
+## Sections
+
+A section has an `id`, a `render` function, and optionally a `when` guard and `priority`:
+
+```ts
+const citation: PromptSection<MyContext> = {
+  id: 'citation',
+  when: (ctx) => ctx.flags.citationEnabled,   // excluded when false
+  priority: 20,                               // lower = earlier (default: 0)
+  render: () => 'Always include citations with links when referencing external sources.',
+};
+```
+
+## Forking
+
+Create variants without duplicating prompt code:
+
+```ts
+const base = new PromptBuilder<MyContext>()
+  .use(identity)
+  .use(guidelines)
+  .use(tone);
+
+// Customer support agent — adds escalation rules
+const supportAgent = base.fork()
+  .use(escalationPolicy)
+  .use(ticketFormat);
+
+// Code assistant — swaps guidelines, drops tone
+const codeAssistant = base.fork()
+  .without(guidelines)
+  .without(tone)
+  .use(codingGuidelines)
+  .use(outputFormat);
+```
+
+Each fork is independent. Modifying one doesn't affect the others.
+
+## Context
+
+Sections receive a typed context with feature flags, a mode string, and arbitrary variables:
+
+```ts
+type MyContext = PromptContext<
+  { webSearchEnabled: boolean; citationEnabled: boolean },  // flags
+  { assistantName: string; language: string }               // vars
+>;
+```
+
+You build the context once and pass it to `.build(ctx)`. Every section receives the same object — no threading booleans through function signatures.
+
+## Builder API
+
+```ts
+new PromptBuilder<MyContext>()
+  .use(section)              // add (replaces if same id exists)
+  .without(section)          // remove by section object or string id
+  .has(section)              // check existence by section object or string id
+  .ids()                     // list all section ids
+  .fork()                    // independent copy
+  .build(ctx)                // render to string
+  .buildWithMeta(ctx)        // render + { included: string[], excluded: string[] }
+```
+
+## Testing
+
+```ts
+import { mockContext, renderSection } from 'teleprompt/testing';
+
+// Render a section in isolation
+const output = renderSection(webSearch, { flags: { webSearchEnabled: true } });
+expect(output).toContain('web search');
+
+// Assert on prompt structure
+const { included, excluded } = builder.buildWithMeta(ctx);
+expect(included).toContain('web-search');
+expect(excluded).toContain('citation');
+```
+
+## License
+
+MIT
