@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { PromptBuilder } from './builder';
-import type { PromptContext, PromptSection } from './types';
 import { mockContext } from './testing';
+import type { PromptContext, PromptSection } from './types';
 
-const ctx = mockContext();
+type TestFlags = Record<string, boolean>;
+type TestVars = Record<string, unknown>;
+type Ctx = PromptContext<TestFlags, TestVars>;
 
-const section = (id: string, content: string, opts?: Partial<PromptSection>): PromptSection => ({
+const ctx = mockContext<TestFlags, TestVars>();
+
+const section = (
+  id: string,
+  content: string,
+  opts?: Partial<PromptSection<Ctx>>,
+): PromptSection<Ctx> => ({
   id,
   render: () => content,
   ...opts,
@@ -14,13 +22,16 @@ const section = (id: string, content: string, opts?: Partial<PromptSection>): Pr
 describe('PromptBuilder', () => {
   describe('use', () => {
     it('adds a section and renders it', () => {
-      const result = new PromptBuilder().use(section('a', 'Hello')).build(ctx);
+      const result = new PromptBuilder<Ctx>().use(section('a', 'Hello')).build(ctx);
 
       expect(result).toBe('Hello');
     });
 
     it('replaces a section with the same id', () => {
-      const result = new PromptBuilder().use(section('a', 'v1')).use(section('a', 'v2')).build(ctx);
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'v1'))
+        .use(section('a', 'v2'))
+        .build(ctx);
 
       expect(result).toBe('v2');
     });
@@ -28,7 +39,7 @@ describe('PromptBuilder', () => {
 
   describe('without', () => {
     it('removes a section by id string', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'Keep'))
         .use(section('b', 'Remove'))
         .without('b')
@@ -39,13 +50,17 @@ describe('PromptBuilder', () => {
 
     it('removes a section by section object', () => {
       const b = section('b', 'Remove');
-      const result = new PromptBuilder().use(section('a', 'Keep')).use(b).without(b).build(ctx);
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'Keep'))
+        .use(b)
+        .without(b)
+        .build(ctx);
 
       expect(result).toBe('Keep');
     });
 
     it('is a no-op for non-existent ids', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'Keep'))
         .without('nonexistent')
         .build(ctx);
@@ -56,25 +71,25 @@ describe('PromptBuilder', () => {
 
   describe('has', () => {
     it('returns true for registered sections by string', () => {
-      const builder = new PromptBuilder().use(section('a', 'test'));
+      const builder = new PromptBuilder<Ctx>().use(section('a', 'test'));
       expect(builder.has('a')).toBe(true);
     });
 
     it('returns true for registered sections by object', () => {
       const a = section('a', 'test');
-      const builder = new PromptBuilder().use(a);
+      const builder = new PromptBuilder<Ctx>().use(a);
       expect(builder.has(a)).toBe(true);
     });
 
     it('returns false for unregistered sections', () => {
-      const builder = new PromptBuilder();
+      const builder = new PromptBuilder<Ctx>();
       expect(builder.has('a')).toBe(false);
     });
   });
 
   describe('ids', () => {
     it('returns section ids in insertion order', () => {
-      const builder = new PromptBuilder()
+      const builder = new PromptBuilder<Ctx>()
         .use(section('c', '', { priority: 0 }))
         .use(section('a', '', { priority: 1 }))
         .use(section('b', '', { priority: 2 }));
@@ -85,8 +100,7 @@ describe('PromptBuilder', () => {
 
   describe('fork', () => {
     it('creates an independent copy', () => {
-      const base = new PromptBuilder().use(section('a', 'shared'));
-
+      const base = new PromptBuilder<Ctx>().use(section('a', 'shared'));
       const variant = base.fork().use(section('b', 'extra'));
 
       expect(base.has('b')).toBe(false);
@@ -94,8 +108,7 @@ describe('PromptBuilder', () => {
     });
 
     it('does not affect the original when modified', () => {
-      const base = new PromptBuilder().use(section('a', 'original'));
-
+      const base = new PromptBuilder<Ctx>().use(section('a', 'original'));
       const variant = base.fork().use(section('a', 'modified'));
 
       expect(base.build(ctx)).toBe('original');
@@ -105,7 +118,7 @@ describe('PromptBuilder', () => {
 
   describe('when guards', () => {
     it('excludes sections whose when guard returns false', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'included'))
         .use(section('b', 'excluded', { when: () => false }))
         .build(ctx);
@@ -114,7 +127,7 @@ describe('PromptBuilder', () => {
     });
 
     it('includes sections whose when guard returns true', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'first'))
         .use(section('b', 'second', { when: () => true }))
         .build(ctx);
@@ -126,9 +139,9 @@ describe('PromptBuilder', () => {
       const flaggedCtx = mockContext({ flags: { myFlag: true } });
       const unflaggedCtx = mockContext({ flags: { myFlag: false } });
 
-      const builder = new PromptBuilder().use(section('a', 'always')).use(
+      const builder = new PromptBuilder<Ctx>().use(section('a', 'always')).use(
         section('b', 'flagged', {
-          when: (ctx: PromptContext) => ctx.flags['myFlag'] === true,
+          when: (ctx) => ctx.flags.myFlag === true,
         }),
       );
 
@@ -139,7 +152,7 @@ describe('PromptBuilder', () => {
 
   describe('priority ordering', () => {
     it('sorts sections by priority', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('c', 'third', { priority: 30 }))
         .use(section('a', 'first', { priority: 10 }))
         .use(section('b', 'second', { priority: 20 }))
@@ -149,7 +162,7 @@ describe('PromptBuilder', () => {
     });
 
     it('preserves insertion order for equal priorities', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'first'))
         .use(section('b', 'second'))
         .use(section('c', 'third'))
@@ -161,7 +174,7 @@ describe('PromptBuilder', () => {
 
   describe('empty string filtering', () => {
     it('filters out sections that render empty strings', () => {
-      const result = new PromptBuilder()
+      const result = new PromptBuilder<Ctx>()
         .use(section('a', 'keep'))
         .use(section('b', ''))
         .use(section('c', 'also keep'))
@@ -173,7 +186,7 @@ describe('PromptBuilder', () => {
 
   describe('buildWithMeta', () => {
     it('returns included and excluded section ids', () => {
-      const builder = new PromptBuilder()
+      const builder = new PromptBuilder<Ctx>()
         .use(section('a', 'yes'))
         .use(section('b', 'no', { when: () => false }))
         .use(section('c', 'yes'));
@@ -190,9 +203,9 @@ describe('PromptBuilder', () => {
     it('passes context to render function', () => {
       const dynamicCtx = mockContext({ vars: { name: 'Claude' } });
 
-      const builder = new PromptBuilder().use({
+      const builder = new PromptBuilder<Ctx>().use({
         id: 'greeting',
-        render: (ctx) => `Hello, ${(ctx.vars as Record<string, string>)['name']}!`,
+        render: (ctx) => `Hello, ${(ctx.vars as Record<string, string>).name}!`,
       });
 
       expect(builder.build(dynamicCtx)).toBe('Hello, Claude!');

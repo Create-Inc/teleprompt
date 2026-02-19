@@ -16,7 +16,9 @@ import type { PromptContext, PromptSection } from './types';
  *   .build(ctx);
  * ```
  */
-export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
+export class PromptBuilder<
+  TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
+> {
   private sections: PromptSection<TCtx>[] = [];
 
   /**

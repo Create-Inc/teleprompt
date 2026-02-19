@@ -16,7 +16,6 @@ export function mockContext<
 >(overrides?: Partial<PromptContext<TFlags, TVars>>): PromptContext<TFlags, TVars> {
   return {
     flags: {} as TFlags,
-    mode: 'default',
     vars: {} as TVars,
     ...overrides,
   };
@@ -32,10 +31,9 @@ export function mockContext<
  * expect(output).toContain('expected text');
  * ```
  */
-export function renderSection<TCtx extends PromptContext = PromptContext>(
-  section: PromptSection<TCtx>,
-  contextOverrides?: Partial<TCtx>,
-): string | null {
+export function renderSection<
+  TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
+>(section: PromptSection<TCtx>, contextOverrides?: Partial<TCtx>): string | null {
   const ctx = mockContext(contextOverrides) as TCtx;
   if (section.when && !section.when(ctx)) {
     return null;
