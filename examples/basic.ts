@@ -2,95 +2,102 @@ import { PromptBuilder, type PromptContext, type PromptSection } from '../src';
 
 // 1. Define your context shape
 
-type AgentContext = PromptContext<
-  { askQuestionsEnabled: boolean; codebaseExplorationEnabled: boolean },
-  { brandName: string; date: string }
->;
+type MyFlags = {
+  webSearchEnabled: boolean;
+  verboseEnabled: boolean;
+};
+
+type MyVars = {
+  assistantName: string;
+  mode: string;
+  date: string;
+};
+
+type MyContext = PromptContext<MyFlags, MyVars>;
 
 // 2. Define sections
 
-const identity: PromptSection<AgentContext> = {
+const identity: PromptSection<MyContext> = {
   id: 'identity',
-  render: (ctx) => `You are an expert software engineer for ${ctx.vars.brandName}.`,
+  render: (ctx) => `You are ${ctx.vars.assistantName}, a helpful AI assistant.`,
 };
 
-const instructions: PromptSection<AgentContext> = {
-  id: 'instructions',
-  render: () => `# Instructions
-- Clarify intent before acting.
-- Break requests into atomic requirements.
-- Implement with precision.
-- Verify the result.`,
+const guidelines: PromptSection<MyContext> = {
+  id: 'guidelines',
+  render: () => `# Guidelines
+- Be concise and direct.
+- Cite sources when making factual claims.
+- Ask for clarification when a request is ambiguous.`,
 };
 
-const ambiguity: PromptSection<AgentContext> = {
-  id: 'ambiguity',
+const verboseMode: PromptSection<MyContext> = {
+  id: 'verbose',
   render: (ctx) =>
-    ctx.flags.askQuestionsEnabled
-      ? '- When a request is ambiguous, ask 1-3 clarifying questions before proceeding.'
-      : '- Make reasonable assumptions and proceed.',
+    ctx.flags.verboseEnabled
+      ? 'Provide detailed, step-by-step explanations with examples.'
+      : 'Keep responses short and to the point.',
 };
 
-const codebaseExploration: PromptSection<AgentContext> = {
-  id: 'codebase-exploration',
-  when: (ctx) => ctx.flags.codebaseExplorationEnabled,
-  render: () => `# Codebase Exploration
-1. Start with semantic search to locate relevant code.
-2. Use grep to find specific patterns.
-3. Read files you need to understand.`,
+const webSearch: PromptSection<MyContext> = {
+  id: 'web-search',
+  when: (ctx) => ctx.flags.webSearchEnabled,
+  render: () => `# Web Search
+You have access to web search. Use it when the user asks about
+current events or information that may be outdated.`,
 };
 
-const rules: PromptSection<AgentContext> = {
-  id: 'rules',
-  render: () => `# Rules
-- Do not use comments. Always include unchanged code in full.
-- Verify changes before finishing.`,
+const tone: PromptSection<MyContext> = {
+  id: 'tone',
+  render: () => `# Tone
+- Be friendly but professional.
+- Avoid jargon unless the user uses it first.`,
 };
 
-const date: PromptSection<AgentContext> = {
+const date: PromptSection<MyContext> = {
   id: 'date',
   render: (ctx) => `Today's date is ${ctx.vars.date}.`,
 };
 
 // 3. Compose a base prompt
 
-const base = new PromptBuilder<AgentContext>()
+const base = new PromptBuilder<MyContext>()
   .use(identity)
-  .use(instructions)
-  .use(ambiguity)
-  .use(codebaseExploration)
-  .use(rules)
+  .use(guidelines)
+  .use(verboseMode)
+  .use(webSearch)
+  .use(tone)
   .use(date);
 
 // 4. Fork for variants
 
-const discussionMode = base
+const readOnly: PromptSection<MyContext> = {
+  id: 'read-only',
+  when: (ctx) => ctx.vars.mode === 'read-only',
+  render: () => 'You are in read-only mode. Answer questions but do not take any actions.',
+};
+
+const readOnlyMode = base
   .fork()
-  .without(rules)
-  .use({
-    id: 'discussion-guard',
-    when: (ctx) => ctx.mode === 'discussion',
-    render: () => 'You are in discussion mode. Do not make changes to code.',
-  });
+  .without(tone) // or `.without('tone')`
+  .use(readOnly);
 
 // 5. Build with context
 
-const ctx: AgentContext = {
-  flags: { askQuestionsEnabled: true, codebaseExplorationEnabled: true },
-  mode: 'default',
-  vars: { brandName: 'Anything', date: 'February 19, 2026' },
+const ctx: MyContext = {
+  flags: { webSearchEnabled: true, verboseEnabled: false },
+  vars: { assistantName: 'Daniel', mode: 'default', date: 'February 19, 2026' },
 };
 
 console.log('=== Base prompt ===\n');
 console.log(base.build(ctx));
 
-console.log('\n\n=== With exploration disabled ===\n');
-console.log(base.build({ ...ctx, flags: { ...ctx.flags, codebaseExplorationEnabled: false } }));
+console.log('\n\n=== With web search disabled ===\n');
+console.log(base.build({ ...ctx, flags: { ...ctx.flags, webSearchEnabled: false } }));
 
-console.log('\n\n=== Discussion mode ===\n');
-console.log(discussionMode.build({ ...ctx, mode: 'discussion' }));
+console.log('\n\n=== Read-only mode ===\n');
+console.log(readOnlyMode.build({ ...ctx, vars: { ...ctx.vars, mode: 'read-only' } }));
 
-console.log('\n\n=== buildWithMeta ===\n');
+console.log('\n\n=== Debugging ===\n');
 const meta = base.buildWithMeta(ctx);
 console.log('Included:', meta.included);
 console.log('Excluded:', meta.excluded);

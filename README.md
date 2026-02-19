@@ -2,7 +2,7 @@
 
 Compose LLM system prompts from discrete sections instead of monolithic template literals.
 
-Feature flags, mode variants, and prompt changes stay co-located with their content. Adding a feature flag is one section in one file, not a boolean threaded through 15 function signatures.
+Conditional logic, variants, and prompt changes stay co-located with their content. Adding a new flag is one section in one file, not a boolean threaded through 15 function signatures.
 
 ```bash
 pnpm add teleprompt
@@ -14,10 +14,9 @@ pnpm add teleprompt
 import { PromptBuilder, type PromptContext, type PromptSection } from 'teleprompt';
 
 // Define your context shape
-type MyContext = PromptContext<
-  { webSearchEnabled: boolean },
-  { assistantName: string }
->;
+type MyFlags = { webSearchEnabled: boolean };
+type MyVars = { assistantName: string };
+type MyContext = PromptContext<MyFlags, MyVars>;
 
 // Sections are objects with an id and a render function
 const identity: PromptSection<MyContext> = {
@@ -25,6 +24,7 @@ const identity: PromptSection<MyContext> = {
   render: (ctx) => `You are ${ctx.vars.assistantName}, a helpful AI assistant.`,
 };
 
+// This is a static section with no context dependencies
 const guidelines: PromptSection<MyContext> = {
   id: 'guidelines',
   render: () => `# Guidelines
@@ -33,7 +33,7 @@ const guidelines: PromptSection<MyContext> = {
 - Ask for clarification when a request is ambiguous.`,
 };
 
-// Feature flags live in the section, not threaded through function signatures
+// Conditional logic lives in the section, not threaded through function signatures
 const webSearch: PromptSection<MyContext> = {
   id: 'web-search',
   when: (ctx) => ctx.flags.webSearchEnabled,
@@ -48,8 +48,7 @@ const prompt = new PromptBuilder<MyContext>()
   .use(webSearch)
   .build({
     flags: { webSearchEnabled: true },
-    mode: 'default',
-    vars: { assistantName: 'Atlas' },
+    vars: { assistantName: 'Daniel' },
   });
 ```
 
@@ -93,13 +92,20 @@ Each fork is independent. Modifying one doesn't affect the others.
 
 ## Context
 
-Sections receive a typed context with feature flags, a mode string, and arbitrary variables:
+Sections receive a typed context with boolean flags and arbitrary variables:
 
 ```ts
-type MyContext = PromptContext<
-  { webSearchEnabled: boolean; citationEnabled: boolean },  // flags
-  { assistantName: string; language: string }               // vars
->;
+type MyFlags = {
+  webSearchEnabled: boolean;
+  citationEnabled: boolean;
+};
+
+type MyVars = {
+  assistantName: string;
+  language: string;
+};
+
+type MyContext = PromptContext<MyFlags, MyVars>;
 ```
 
 You build the context once and pass it to `.build(ctx)`. Every section receives the same object — no threading booleans through function signatures.
@@ -114,7 +120,7 @@ new PromptBuilder<MyContext>()
   .ids()                     // list all section ids
   .fork()                    // independent copy
   .build(ctx)                // render to string
-  .buildWithMeta(ctx)        // render + { included: string[], excluded: string[] }
+  .buildWithMeta(ctx)        // render + debug info: { included: string[], excluded: string[] }
 ```
 
 ## Testing
