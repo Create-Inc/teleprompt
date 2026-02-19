@@ -115,13 +115,26 @@ You build the context once and pass it to `.build(ctx)`. Every section receives 
 
 ```ts
 new PromptBuilder<MyContext>()
-  .use(section)              // add (replaces if same id exists)
-  .without(section)          // remove by section object or string id
-  .has(section)              // check existence by section object or string id
-  .ids()                     // list all section ids
-  .fork()                    // independent copy
-  .build(ctx)                // render to string
-  .buildWithMeta(ctx)        // render + debug info: { included: string[], excluded: string[] }
+  // append a section (replaces if same id exists)
+  .use(section)
+
+  // remove by section object or string id
+  .without(section)
+
+  // check existence by section object or string id
+  .has(section)
+
+  // list all section ids
+  .ids()
+
+  // independent copy
+  .fork()
+
+  // render to string
+  .build(ctx)
+
+  // render + debug info: { included: string[], excluded: string[] }
+  .buildWithMeta(ctx)        
 ```
 
 ## Testing
