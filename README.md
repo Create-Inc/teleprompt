@@ -5,13 +5,13 @@ Compose LLM system prompts from discrete sections instead of monolithic template
 Conditional logic, variants, and prompt changes stay co-located with their content. Adding a new flag is one section in one file, not a boolean threaded through 15 function signatures.
 
 ```bash
-pnpm add teleprompt
+pnpm add @anythingai/teleprompt
 ```
 
 ## Quick Start
 
 ```ts
-import { PromptBuilder, type PromptContext, type PromptSection } from 'teleprompt';
+import { PromptBuilder, type PromptContext, type PromptSection } from '@anythingai/teleprompt';
 
 // Define your context shape
 type MyFlags = { webSearchEnabled: boolean };
@@ -140,7 +140,7 @@ new PromptBuilder<MyContext>()
 ## Testing
 
 ```ts
-import { mockContext, renderSection } from 'teleprompt/testing';
+import { mockContext, renderSection } from '@anythingai/teleprompt/testing';
 
 // Render a section in isolation
 const output = renderSection(webSearch, { flags: { webSearchEnabled: true } });
