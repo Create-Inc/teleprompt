@@ -1,6 +1,6 @@
 {
   "name": "@anythingai/teleprompt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Composable, declarative prompt builder for LLM system prompts",
   "type": "module",
   "main": "./dist/index.cjs",
