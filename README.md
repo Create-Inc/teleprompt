@@ -11,35 +11,30 @@ pnpm add @anythingai/teleprompt
 ## Quick Start
 
 ```ts
-import { PromptBuilder, type PromptContext, type PromptSection } from '@anythingai/teleprompt';
+import { PromptBuilder, section, type PromptContext } from '@anythingai/teleprompt';
 
 // Define your context shape
 type MyFlags = { webSearchEnabled: boolean };
 type MyVars = { assistantName: string };
 type MyContext = PromptContext<MyFlags, MyVars>;
 
-// Sections are objects with an id and a render function
-const identity: PromptSection<MyContext> = {
-  id: 'identity',
-  render: (ctx) => `You are ${ctx.vars.assistantName}, a helpful AI assistant.`,
-};
-
-// This is a static section with no context dependencies
-const guidelines: PromptSection<MyContext> = {
-  id: 'guidelines',
-  render: () => `# Guidelines
+// Static section — no context needed, no type parameter
+const guidelines = section('guidelines', () => `# Guidelines
 - Be concise and direct.
 - Cite sources when making factual claims.
-- Ask for clarification when a request is ambiguous.`,
-};
+- Ask for clarification when a request is ambiguous.`);
 
-// Conditional logic lives in the section, not threaded through function signatures
-const webSearch: PromptSection<MyContext> = {
-  id: 'web-search',
-  when: (ctx) => ctx.flags.webSearchEnabled,
-  render: () => `You have access to web search. Use it when the user asks about
-current events or information that may have changed after your training cutoff.`,
-};
+// Dynamic section — uses context
+const identity = section('identity', (ctx: MyContext) =>
+  `You are ${ctx.vars.assistantName}, a helpful AI assistant.`
+);
+
+// Conditional section — return null to exclude
+const webSearch = section('web-search', (ctx: MyContext) => {
+  if (!ctx.flags.webSearchEnabled) return null;
+  return `You have access to web search. Use it when the user asks about
+current events or information that may have changed after your training cutoff.`;
+});
 
 // Compose and build
 const prompt = new PromptBuilder<MyContext>()
@@ -54,17 +49,104 @@ const prompt = new PromptBuilder<MyContext>()
 
 ## Sections
 
-A section has an `id`, a `render` function, and optionally a `when` guard:
+Create sections with the `section()` helper. Return a string to include, `null` to exclude:
 
 ```ts
-const citation: PromptSection<MyContext> = {
-  id: 'citation',
-  when: (ctx) => ctx.flags.citationEnabled,   // excluded when false
-  render: () => 'Always include citations with links when referencing external sources.',
-};
+// Always included
+const rules = section('rules', () => 'Be helpful and concise.');
+
+// Conditional — null means excluded
+const citation = section('citation', (ctx: MyContext) => {
+  if (!ctx.flags.citationEnabled) return null;
+  return 'Always include citations with links when referencing external sources.';
+});
 ```
 
 Sections render in the order you call `.use()`. To reorder, change the call order.
+
+Static sections (no type parameter) work in any builder — you don't need to match the builder's context type:
+
+```ts
+const disclaimer = section('disclaimer', () => 'Responses are not legal advice.');
+
+// Works in any builder regardless of context type
+new PromptBuilder<MyContext>().use(disclaimer)
+new PromptBuilder<OtherContext>().use(disclaimer)
+```
+
+## Mutually Exclusive Sections
+
+Use `.useOneOf()` when exactly one of several sections should render. The first candidate that returns a non-empty string wins:
+
+```ts
+const hasTasks = section('has-tasks', (ctx: MyContext) => {
+  if (ctx.vars.tasks.length === 0) return null;
+  return `## Active Tasks\n\n${ctx.vars.tasks.map(t => `- ${t.title}`).join('\n')}`;
+});
+
+const noTasks = section('no-tasks', () => '## Active Tasks\n\nNo tasks currently running.');
+
+builder.useOneOf(hasTasks, noTasks);
+```
+
+## Groups
+
+Group related sections together. In text mode, groups are transparent. In XML mode, they wrap children in tags:
+
+```ts
+const prompt = new PromptBuilder<MyContext>()
+  .use(identity)
+  .group('tools', b => b
+    .use(webSearch)
+    .use(calculator)
+  )
+  .use(guidelines)
+  .build(ctx, { format: 'xml' });
+
+// <identity>
+// You are Daniel, a helpful AI assistant.
+// </identity>
+//
+// <tools>
+// <web-search>
+// You have access to web search...
+// </web-search>
+//
+// <calculator>
+// You can evaluate math expressions...
+// </calculator>
+// </tools>
+//
+// <guidelines>
+// # Guidelines
+// ...
+// </guidelines>
+```
+
+Groups can be nested:
+
+```ts
+builder.group('capabilities', b => b
+  .group('tools', b => b
+    .use(webSearch)
+    .use(calculator)
+  )
+  .group('integrations', b => b
+    .use(slack)
+    .use(linear)
+  )
+)
+```
+
+## XML Format
+
+Both Claude and Gemini recommend structuring prompts with XML tags. Pass `{ format: 'xml' }` to `.build()` to wrap each section in `<id>` tags:
+
+```ts
+builder.build(ctx, { format: 'xml' })
+```
+
+The section `id` becomes the tag name. Content is not indented or escaped — tags are structural delimiters for the model, not strict XML.
 
 ## Forking
 
@@ -109,32 +191,29 @@ type MyVars = {
 type MyContext = PromptContext<MyFlags, MyVars>;
 ```
 
+Both `PromptContext` and `PromptBuilder` have defaults, so you can skip the type parameter for simple cases:
+
+```ts
+// No context needed
+const builder = new PromptBuilder();
+```
+
 You build the context once and pass it to `.build(ctx)`. Every section receives the same object — no threading booleans through function signatures.
 
 ## Builder API
 
 ```ts
 new PromptBuilder<MyContext>()
-  // append a section (replaces if same id exists)
-  .use(section)
-
-  // remove by section object or string id
-  .without(section)
-
-  // check existence by section object or string id
-  .has(section)
-
-  // list all section ids
-  .ids()
-
-  // independent copy
-  .fork()
-
-  // render to string
-  .build(ctx)
-
-  // render + debug info: { included: string[], excluded: string[] }
-  .buildWithMeta(ctx)        
+  .use(section)                      // append (replaces if same id)
+  .useOneOf(sectionA, sectionB)      // first match wins
+  .group('name', b => b.use(...))    // named group (XML wrapper)
+  .without(section)                  // remove by object or string id
+  .has(section)                      // check existence
+  .ids()                             // list all section ids
+  .fork()                            // independent copy
+  .build(ctx)                        // render to string
+  .build(ctx, { format: 'xml' })     // render with XML tags
+  .buildWithMeta(ctx)                // render + { included, excluded }
 ```
 
 ## Testing
