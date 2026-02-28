@@ -1,8 +1,8 @@
 # teleprompt
 
-Compose LLM system prompts from discrete sections instead of monolithic template literals.
+Composable, section-based LLM system prompts.
 
-Conditional logic, variants, and prompt changes stay co-located with their content. Adding a new flag is one section in one file, not a boolean threaded through 15 function signatures.
+Each section owns its content and conditional logic. Sections can be reused across prompt variants, conditionally included, and rendered as plain text or XML.
 
 ```bash
 pnpm add @anythingai/teleprompt
@@ -64,7 +64,7 @@ const citation = section('citation', (ctx: MyContext) => {
 
 Sections render in the order you call `.use()`. To reorder, change the call order.
 
-Static sections (no type parameter) work in any builder — you don't need to match the builder's context type:
+Static sections (no type parameter) work in any builder:
 
 ```ts
 const disclaimer = section('disclaimer', () => 'Responses are not legal advice.');
@@ -146,11 +146,11 @@ Both Claude and Gemini recommend structuring prompts with XML tags. Pass `{ form
 builder.build(ctx, { format: 'xml' })
 ```
 
-The section `id` becomes the tag name. Content is not indented or escaped — tags are structural delimiters for the model, not strict XML.
+The section `id` becomes the tag name. Content is left as-is inside the tags.
 
 ## Forking
 
-Create variants without duplicating prompt code:
+Create variants from a shared base:
 
 ```ts
 const base = new PromptBuilder<MyContext>()
@@ -191,14 +191,14 @@ type MyVars = {
 type MyContext = PromptContext<MyFlags, MyVars>;
 ```
 
-Both `PromptContext` and `PromptBuilder` have defaults, so you can skip the type parameter for simple cases:
+`PromptContext` and `PromptBuilder` have defaults, so the type parameter is optional:
 
 ```ts
 // No context needed
 const builder = new PromptBuilder();
 ```
 
-You build the context once and pass it to `.build(ctx)`. Every section receives the same object — no threading booleans through function signatures.
+Build the context once and pass it to `.build(ctx)`. Every section receives the same object.
 
 ## Builder API
 
