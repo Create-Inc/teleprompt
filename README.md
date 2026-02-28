@@ -102,25 +102,27 @@ const prompt = new PromptBuilder<MyContext>()
   )
   .use(guidelines)
   .build(ctx, { format: 'xml' });
+```
 
-// <identity>
-// You are Daniel, a helpful AI assistant.
-// </identity>
-//
-// <tools>
-// <web-search>
-// You have access to web search...
-// </web-search>
-//
-// <calculator>
-// You can evaluate math expressions...
-// </calculator>
-// </tools>
-//
-// <guidelines>
-// # Guidelines
-// ...
-// </guidelines>
+```xml
+<identity>
+You are Daniel, a helpful AI assistant.
+</identity>
+
+<tools>
+<web-search>
+You have access to web search...
+</web-search>
+
+<calculator>
+You can evaluate math expressions...
+</calculator>
+</tools>
+
+<guidelines>
+# Guidelines
+...
+</guidelines>
 ```
 
 Groups can be nested:
