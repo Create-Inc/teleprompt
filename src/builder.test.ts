@@ -225,4 +225,176 @@ describe('PromptBuilder', () => {
       expect(builder.build(dynamicCtx)).toBe('Hello, Claude!');
     });
   });
+
+  describe('group', () => {
+    it('adds sections inside a group', () => {
+      const builder = new PromptBuilder<Ctx>().group('tools', (b) =>
+        b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
+      );
+
+      expect(builder.has('tools')).toBe(true);
+      expect(builder.has('bash')).toBe(true);
+      expect(builder.has('git')).toBe(true);
+    });
+
+    it('replaces a group with the same id', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .group('tools', (b) => b.use(section('bash', 'Bash v1')))
+        .group('tools', (b) => b.use(section('git', 'Git v2')));
+
+      expect(builder.has('bash')).toBe(false);
+      expect(builder.has('git')).toBe(true);
+    });
+
+    it('supports nested groups', () => {
+      const builder = new PromptBuilder<Ctx>().group('outer', (b) =>
+        b.use(section('a', 'A')).group('inner', (b) => b.use(section('b', 'B'))),
+      );
+
+      expect(builder.has('outer')).toBe(true);
+      expect(builder.has('inner')).toBe(true);
+      expect(builder.has('b')).toBe(true);
+      expect(builder.ids()).toEqual(['outer', 'a', 'inner', 'b']);
+    });
+
+    it('is transparent in text format', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'first'))
+        .group('tools', (b) =>
+          b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
+        )
+        .use(section('b', 'last'))
+        .build(ctx);
+
+      expect(result).toBe('first\n\nBash tools\n\nGit tools\n\nlast');
+    });
+  });
+
+  describe('without (groups)', () => {
+    it('removes a section inside a group', () => {
+      const builder = new PromptBuilder<Ctx>().group('tools', (b) =>
+        b.use(section('bash', 'Bash')).use(section('git', 'Git')),
+      );
+
+      builder.without('bash');
+
+      expect(builder.has('bash')).toBe(false);
+      expect(builder.has('git')).toBe(true);
+    });
+
+    it('removes an entire group by id', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(section('a', 'Keep'))
+        .group('tools', (b) => b.use(section('bash', 'Bash')).use(section('git', 'Git')));
+
+      builder.without('tools');
+
+      expect(builder.has('tools')).toBe(false);
+      expect(builder.has('bash')).toBe(false);
+      expect(builder.build(ctx)).toBe('Keep');
+    });
+  });
+
+  describe('ids (groups)', () => {
+    it('returns group and child ids in order', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(section('a', ''))
+        .group('tools', (b) => b.use(section('bash', '')).use(section('git', '')))
+        .use(section('b', ''));
+
+      expect(builder.ids()).toEqual(['a', 'tools', 'bash', 'git', 'b']);
+    });
+  });
+
+  describe('fork (groups)', () => {
+    it('deep copies groups so modifications are independent', () => {
+      const base = new PromptBuilder<Ctx>().group('tools', (b) =>
+        b.use(section('bash', 'Bash')).use(section('git', 'Git')),
+      );
+      const variant = base.fork().without('bash');
+
+      expect(base.has('bash')).toBe(true);
+      expect(variant.has('bash')).toBe(false);
+    });
+  });
+
+  describe('xml format', () => {
+    it('wraps sections in id tags', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('identity', 'You are an assistant.'))
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<identity>\nYou are an assistant.\n</identity>');
+    });
+
+    it('wraps multiple sections with separator', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('role', 'You are helpful.'))
+        .use(section('rules', 'Be concise.'))
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<role>\nYou are helpful.\n</role>\n\n<rules>\nBe concise.\n</rules>');
+    });
+
+    it('wraps groups in id tags containing children', () => {
+      const result = new PromptBuilder<Ctx>()
+        .group('tools', (b) =>
+          b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
+        )
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe(
+        '<tools>\n<bash>\nBash tools\n</bash>\n\n<git>\nGit tools\n</git>\n</tools>',
+      );
+    });
+
+    it('renders nested groups', () => {
+      const result = new PromptBuilder<Ctx>()
+        .group('outer', (b) =>
+          b.use(section('a', 'A')).group('inner', (b) => b.use(section('b', 'B'))),
+        )
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<outer>\n<a>\nA\n</a>\n\n<inner>\n<b>\nB\n</b>\n</inner>\n</outer>');
+    });
+
+    it('excludes sections by when guard', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'included'))
+        .use(section('b', 'excluded', { when: () => false }))
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<a>\nincluded\n</a>');
+    });
+
+    it('omits empty groups when all children excluded', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'keep'))
+        .group('tools', (b) => b.use(section('bash', 'hidden', { when: () => false })))
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<a>\nkeep\n</a>');
+    });
+
+    it('filters empty renders', () => {
+      const result = new PromptBuilder<Ctx>()
+        .use(section('a', 'keep'))
+        .use(section('b', ''))
+        .build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<a>\nkeep\n</a>');
+    });
+
+    it('tracks metadata correctly', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(section('a', 'yes'))
+        .use(section('b', 'no', { when: () => false }))
+        .group('tools', (b) => b.use(section('bash', 'Bash')).use(section('git', '')));
+
+      const meta = builder.buildWithMeta(ctx, { format: 'xml' });
+
+      expect(meta.included).toEqual(['a', 'bash']);
+      expect(meta.excluded).toEqual(['b', 'git']);
+    });
+  });
 });
