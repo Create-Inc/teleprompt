@@ -5,8 +5,8 @@
  * @typeParam TVars - Shape of the runtime variables object
  */
 export interface PromptContext<
-  TFlags extends Record<string, boolean>,
-  TVars extends Record<string, unknown>,
+  TFlags extends Record<string, boolean> = Record<string, boolean>,
+  TVars extends Record<string, unknown> = Record<string, unknown>,
 > {
   /** Boolean flags that control which sections are included and how they render */
   flags: TFlags;
@@ -19,9 +19,7 @@ export interface PromptContext<
  *
  * @typeParam TCtx - The prompt context type this section operates on
  */
-export interface PromptSection<
-  TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
-> {
+export interface PromptSection<TCtx extends PromptContext = PromptContext> {
   /** Unique identifier. Used by `use()`, `without()`, and `buildWithMeta()`. */
   id: string;
 

@@ -8,18 +8,14 @@ function assertNever(value: never): never {
  * A named group of prompt nodes, rendered as an XML wrapper
  * in `xml` format and transparently in `text` format.
  */
-interface PromptGroup<
-  TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
-> {
+interface PromptGroup<TCtx extends PromptContext> {
   id: string;
   children: PromptNode<TCtx>[];
 }
 
-type PromptNode<TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>> =
-  | PromptSection<TCtx>
-  | PromptGroup<TCtx>;
+type PromptNode<TCtx extends PromptContext> = PromptSection<TCtx> | PromptGroup<TCtx>;
 
-function isSection<TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>>(
+function isSection<TCtx extends PromptContext>(
   node: PromptNode<TCtx>,
 ): node is PromptSection<TCtx> {
   return 'render' in node;
@@ -56,9 +52,7 @@ export interface BuildOptions {
  *   .build(ctx);
  * ```
  */
-export class PromptBuilder<
-  TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
-> {
+export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
   private nodes: PromptNode<TCtx>[] = [];
 
   /**

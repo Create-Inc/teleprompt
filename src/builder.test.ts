@@ -226,6 +226,46 @@ describe('PromptBuilder', () => {
     });
   });
 
+  describe('default type parameter', () => {
+    it('allows PromptSection without type param', () => {
+      // Static section — no context needed
+      const staticSection: PromptSection = {
+        id: 'static',
+        render: () => 'I am static',
+      };
+
+      const result = new PromptBuilder().use(staticSection).build(ctx);
+      expect(result).toBe('I am static');
+    });
+
+    it('allows static sections in a typed builder', () => {
+      type SpecificVars = { name: string };
+      type SpecificCtx = PromptContext<Record<string, boolean>, SpecificVars>;
+
+      // Section with no type param works in a builder with a specific context
+      const staticSection: PromptSection = {
+        id: 'static',
+        render: () => 'I work anywhere',
+      };
+
+      const typedSection: PromptSection<SpecificCtx> = {
+        id: 'typed',
+        render: (ctx) => `Hello ${ctx.vars.name}`,
+      };
+
+      const specificCtx = mockContext<Record<string, boolean>, SpecificVars>({
+        vars: { name: 'Claude' },
+      });
+
+      const result = new PromptBuilder<SpecificCtx>()
+        .use(staticSection)
+        .use(typedSection)
+        .build(specificCtx);
+
+      expect(result).toBe('I work anywhere\n\nHello Claude');
+    });
+  });
+
   describe('group', () => {
     it('adds sections inside a group', () => {
       const builder = new PromptBuilder<Ctx>().group('tools', (b) =>
