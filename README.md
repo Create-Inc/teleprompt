@@ -49,7 +49,7 @@ const prompt = new PromptBuilder<MyContext>()
 
 ## Sections
 
-Create sections with the `section()` helper. Return a string to include, `null` to exclude:
+`section(id, render)` takes an id and a render function. Return a string to include, `null` to exclude:
 
 ```ts
 // Always included
@@ -74,20 +74,66 @@ new PromptBuilder<MyContext>().use(disclaimer)
 new PromptBuilder<OtherContext>().use(disclaimer)
 ```
 
-## Mutually Exclusive Sections
+## Context
 
-Use `.useOneOf()` when exactly one of several sections should render. The first candidate that returns a non-empty string wins:
+Sections receive a typed context with boolean flags and arbitrary variables:
 
 ```ts
-const hasTasks = section('has-tasks', (ctx: MyContext) => {
-  if (ctx.vars.tasks.length === 0) return null;
-  return `## Active Tasks\n\n${ctx.vars.tasks.map(t => `- ${t.title}`).join('\n')}`;
-});
+type MyFlags = {
+  webSearchEnabled: boolean;
+  citationEnabled: boolean;
+};
 
-const noTasks = section('no-tasks', () => '## Active Tasks\n\nNo tasks currently running.');
+type MyVars = {
+  assistantName: string;
+  language: string;
+};
 
-builder.useOneOf(hasTasks, noTasks);
+type MyContext = PromptContext<MyFlags, MyVars>;
 ```
+
+`PromptContext` and `PromptBuilder` have defaults, so the type parameter is optional:
+
+```ts
+const builder = new PromptBuilder();
+```
+
+Build the context once and pass it to `.build(ctx)`. Every section receives the same object.
+
+## Forking
+
+Create variants from a shared base:
+
+```ts
+const base = new PromptBuilder<MyContext>()
+  .use(identity)
+  .use(guidelines)
+  .use(tone);
+
+// Customer support agent — adds escalation rules
+const supportAgent = base.fork()
+  .use(escalationPolicy)
+  .use(ticketFormat);
+
+// Code assistant — swaps guidelines, drops tone
+const codeAssistant = base.fork()
+  .without(guidelines)
+  .without(tone)
+  .use(codingGuidelines)
+  .use(outputFormat);
+```
+
+Each fork is independent. Modifying one doesn't affect the others.
+
+## XML Format
+
+Both Claude and Gemini recommend structuring prompts with XML tags. Pass `{ format: 'xml' }` to `.build()` to wrap each section in `<id>` tags:
+
+```ts
+builder.build(ctx, { format: 'xml' })
+```
+
+The section id becomes the tag name. Content is left as-is inside the tags.
 
 ## Groups
 
@@ -140,67 +186,20 @@ builder.group('capabilities', b => b
 )
 ```
 
-## XML Format
+## Mutually Exclusive Sections
 
-Both Claude and Gemini recommend structuring prompts with XML tags. Pass `{ format: 'xml' }` to `.build()` to wrap each section in `<id>` tags:
-
-```ts
-builder.build(ctx, { format: 'xml' })
-```
-
-The section `id` becomes the tag name. Content is left as-is inside the tags.
-
-## Forking
-
-Create variants from a shared base:
+Use `.useOneOf()` when exactly one of several sections should render. The first candidate that returns a non-empty string wins:
 
 ```ts
-const base = new PromptBuilder<MyContext>()
-  .use(identity)
-  .use(guidelines)
-  .use(tone);
+const hasTasks = section('has-tasks', (ctx: MyContext) => {
+  if (ctx.vars.tasks.length === 0) return null;
+  return `## Active Tasks\n\n${ctx.vars.tasks.map(t => `- ${t.title}`).join('\n')}`;
+});
 
-// Customer support agent — adds escalation rules
-const supportAgent = base.fork()
-  .use(escalationPolicy)
-  .use(ticketFormat);
+const noTasks = section('no-tasks', () => '## Active Tasks\n\nNo tasks currently running.');
 
-// Code assistant — swaps guidelines, drops tone
-const codeAssistant = base.fork()
-  .without(guidelines)
-  .without(tone)
-  .use(codingGuidelines)
-  .use(outputFormat);
+builder.useOneOf(hasTasks, noTasks);
 ```
-
-Each fork is independent. Modifying one doesn't affect the others.
-
-## Context
-
-Sections receive a typed context with boolean flags and arbitrary variables:
-
-```ts
-type MyFlags = {
-  webSearchEnabled: boolean;
-  citationEnabled: boolean;
-};
-
-type MyVars = {
-  assistantName: string;
-  language: string;
-};
-
-type MyContext = PromptContext<MyFlags, MyVars>;
-```
-
-`PromptContext` and `PromptBuilder` have defaults, so the type parameter is optional:
-
-```ts
-// No context needed
-const builder = new PromptBuilder();
-```
-
-Build the context once and pass it to `.build(ctx)`. Every section receives the same object.
 
 ## Builder API
 
