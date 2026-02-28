@@ -1,35 +1,12 @@
 import type { PromptContext, PromptSection } from './types';
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
-/** Supported output formats for prompt rendering. */
 export type PromptFormat = 'text' | 'xml';
 
-/** Options for {@link PromptBuilder.build} and {@link PromptBuilder.buildWithMeta}. */
 export interface BuildOptions {
-  /**
-   * Output format.
-   *
-   * - `'text'` (default) — sections joined with `\n\n`, groups are transparent.
-   * - `'xml'` — each section wrapped in `<id>...</id>` tags, groups
-   *   wrapped in `<id>...</id>` containing their children.
-   */
   format?: PromptFormat;
 }
 
-// ---------------------------------------------------------------------------
-// Builder
-// ---------------------------------------------------------------------------
-
 /**
- * Declarative, composable prompt builder.
- *
- * Prompts are composed from discrete {@link PromptSection}s that are
- * independently testable pure functions. The builder handles ordering,
- * conditional inclusion, and final assembly.
- *
  * @example
  * ```ts
  * const prompt = new PromptBuilder()
@@ -42,13 +19,7 @@ export interface BuildOptions {
 export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
   private nodes: PromptNode<TCtx>[] = [];
 
-  /**
-   * Add a section to the prompt.
-   *
-   * If a section with the same `id` already exists, it is replaced.
-   * This makes `.use()` idempotent — you can safely call it multiple
-   * times with the same section without creating duplicates.
-   */
+  /** Replaces an existing section with the same id. */
   use(section: PromptSection<TCtx>): this {
     const idx = this.nodes.findIndex((n) => !isOneOf(n) && n.id === section.id);
     if (idx >= 0) {
@@ -59,33 +30,13 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return this;
   }
 
-  /**
-   * Add mutually exclusive sections. The first candidate that renders
-   * a non-empty string wins — the rest are excluded.
-   *
-   * @example
-   * ```ts
-   * builder.useOneOf(activeTasks, noActiveTasks)
-   * ```
-   */
+  /** First candidate that renders a non-empty string wins. */
   useOneOf(...candidates: PromptSection<TCtx>[]): this {
     this.nodes.push({ candidates });
     return this;
   }
 
-  /**
-   * Add a named group of sections. In `xml` format, children are
-   * wrapped in `<id>...</id>`. In `text` format, groups are transparent
-   * and children render as if they were top-level sections.
-   *
-   * @example
-   * ```ts
-   * builder.group('tools', b => b
-   *   .use(bashSection)
-   *   .use(gitSection)
-   * )
-   * ```
-   */
+  /** In `xml` format, wraps children in `<id>` tags. Transparent in `text` format. */
   group(id: string, configure: (builder: PromptBuilder<TCtx>) => void): this {
     const inner = new PromptBuilder<TCtx>();
     configure(inner);
@@ -99,64 +50,35 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return this;
   }
 
-  /** Remove a section or group. Accepts an id string or an object with `id`. Searches recursively into groups and oneOf candidates. */
+  /** Searches recursively into groups and oneOf candidates. */
   without(ref: string | { id: string }): this {
     const id = typeof ref === 'string' ? ref : ref.id;
     this.nodes = removeNode(this.nodes, id);
     return this;
   }
 
-  /** Check if a section or group exists. Accepts an id string or an object with `id`. Searches recursively into groups and oneOf candidates. */
+  /** Searches recursively into groups and oneOf candidates. */
   has(ref: string | { id: string }): boolean {
     const id = typeof ref === 'string' ? ref : ref.id;
     return hasNode(this.nodes, id);
   }
 
-  /** Get all ids (sections, groups, and oneOf candidates) in order. */
   ids(): string[] {
     return collectIds(this.nodes);
   }
 
-  /**
-   * Create an independent copy of this builder.
-   *
-   * Use this to create mode-specific or model-specific variants
-   * without mutating the base builder.
-   *
-   * @example
-   * ```ts
-   * const base = new PromptBuilder().use(a).use(b);
-   * const variant = base.fork().use(c); // base is unchanged
-   * ```
-   */
+  /** Creates an independent copy. Modifications to the fork don't affect the original. */
   fork(): PromptBuilder<TCtx> {
     const forked = new PromptBuilder<TCtx>();
     forked.nodes = deepCopy(this.nodes);
     return forked;
   }
 
-  /**
-   * Build the final prompt string.
-   *
-   * 1. Filters out sections whose `when` guard returns false
-   * 2. Renders each section
-   * 3. Filters out empty strings
-   * 4. Joins with separator and trims
-   *
-   * Pass `{ format: 'xml' }` to wrap each section in `<id>` tags.
-   */
   build(ctx: TCtx, options?: BuildOptions): string {
     return this.buildWithMeta(ctx, options).prompt;
   }
 
-  /**
-   * Build the prompt and return metadata about which sections were
-   * included/excluded. Useful for debugging and logging.
-   *
-   * A section is "excluded" if its `when` guard returns false.
-   * A section is "included" only if it passes the guard and renders
-   * a non-empty string.
-   */
+  /** Like `build`, but also returns which section ids were included/excluded. */
   buildWithMeta(
     ctx: TCtx,
     options?: BuildOptions,
@@ -175,10 +97,6 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return { prompt, included, excluded };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Internal types
-// ---------------------------------------------------------------------------
 
 interface PromptGroup<TCtx extends PromptContext> {
   id: string;
@@ -207,10 +125,6 @@ function isGroup<TCtx extends PromptContext>(node: PromptNode<TCtx>): node is Pr
 function isOneOf<TCtx extends PromptContext>(node: PromptNode<TCtx>): node is PromptOneOf<TCtx> {
   return 'candidates' in node;
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 function assertNever(value: never): never {
   throw new Error(`Unexpected format: ${value}`);

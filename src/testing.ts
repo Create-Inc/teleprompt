@@ -1,15 +1,5 @@
 import type { PromptContext, PromptSection } from './types';
 
-/**
- * Create a minimal PromptContext for testing.
- * All fields have sensible defaults that can be overridden.
- *
- * @example
- * ```ts
- * const ctx = mockContext({ flags: { myFlag: true } });
- * const output = mySection.render(ctx);
- * ```
- */
 export function mockContext<
   TFlags extends Record<string, boolean> = Record<string, boolean>,
   TVars extends Record<string, unknown> = Record<string, unknown>,
@@ -21,16 +11,7 @@ export function mockContext<
   };
 }
 
-/**
- * Render a single section in isolation with a mock context.
- * Respects the section's `when` guard — returns `null` if excluded.
- *
- * @example
- * ```ts
- * const output = renderSection(mySection, { flags: { enabled: true } });
- * expect(output).toContain('expected text');
- * ```
- */
+/** Renders a section in isolation. Returns `null` if excluded by `when` guard. */
 export function renderSection<
   TCtx extends PromptContext<Record<string, boolean>, Record<string, unknown>>,
 >(section: PromptSection<TCtx>, contextOverrides?: Partial<TCtx>): string | null {

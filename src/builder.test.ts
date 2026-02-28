@@ -222,7 +222,6 @@ describe('PromptBuilder', () => {
 
   describe('default type parameter', () => {
     it('allows PromptSection without type param', () => {
-      // Static section — no context needed
       const staticSection: PromptSection = {
         id: 'static',
         render: () => 'I am static',
@@ -236,7 +235,6 @@ describe('PromptBuilder', () => {
       type SpecificVars = { name: string };
       type SpecificCtx = PromptContext<Record<string, boolean>, SpecificVars>;
 
-      // Section with no type param works in a builder with a specific context
       const staticSection: PromptSection = {
         id: 'static',
         render: () => 'I work anywhere',

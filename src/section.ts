@@ -5,10 +5,8 @@ import type { PromptContext, PromptSection } from './types';
  *
  * @example
  * ```ts
- * // Static
  * section('identity', () => 'You are Coworker.')
  *
- * // Conditional — return null to exclude
  * section('prod', (ctx: SandboxCtx) => {
  *   if (ctx.vars.prodContext == null) return null;
  *   return `## Prod\n\n${ctx.vars.prodContext}`;
