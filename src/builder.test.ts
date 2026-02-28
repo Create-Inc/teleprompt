@@ -466,5 +466,17 @@ describe('PromptBuilder', () => {
       expect(new PromptBuilder<TestCtx>().use(greeting).build(withName)).toBe('Hello Claude');
       expect(new PromptBuilder<TestCtx>().use(greeting).build(withoutName)).toBe('');
     });
+
+    it('supports a when guard option', () => {
+      const flagCtx = mockContext({ flags: { debug: true } });
+      const noFlagCtx = mockContext({ flags: { debug: false } });
+
+      const debug = section('debug', () => 'Debug info', {
+        when: (ctx) => ctx.flags.debug === true,
+      });
+
+      expect(new PromptBuilder().use(debug).build(flagCtx)).toBe('Debug info');
+      expect(new PromptBuilder().use(debug).build(noFlagCtx)).toBe('');
+    });
   });
 });
