@@ -3,6 +3,11 @@ import type { PromptContext, PromptSection } from './types';
 export type PromptFormat = 'text' | 'xml';
 
 export interface BuildOptions {
+  /**
+   * - `'text'` (default) — sections joined with `\n\n`, groups are transparent.
+   * - `'xml'` — each section wrapped in `<id>...</id>` tags, groups
+   *   wrapped in `<id>...</id>` containing their children.
+   */
   format?: PromptFormat;
 }
 
@@ -30,13 +35,30 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return this;
   }
 
-  /** First candidate that renders a non-empty string wins. */
+  /**
+   * First candidate that renders a non-empty string wins.
+   *
+   * @example
+   * ```ts
+   * builder.useOneOf(activeTasks, noActiveTasks)
+   * ```
+   */
   useOneOf(...candidates: PromptSection<TCtx>[]): this {
     this.nodes.push({ candidates });
     return this;
   }
 
-  /** In `xml` format, wraps children in `<id>` tags. Transparent in `text` format. */
+  /**
+   * In `xml` format, wraps children in `<id>` tags. Transparent in `text` format.
+   *
+   * @example
+   * ```ts
+   * builder.group('tools', b => b
+   *   .use(bashSection)
+   *   .use(gitSection)
+   * )
+   * ```
+   */
   group(id: string, configure: (builder: PromptBuilder<TCtx>) => void): this {
     const inner = new PromptBuilder<TCtx>();
     configure(inner);
@@ -67,7 +89,15 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return collectIds(this.nodes);
   }
 
-  /** Creates an independent copy. Modifications to the fork don't affect the original. */
+  /**
+   * Creates an independent copy. Modifications to the fork don't affect the original.
+   *
+   * @example
+   * ```ts
+   * const base = new PromptBuilder().use(a).use(b);
+   * const variant = base.fork().use(c);
+   * ```
+   */
   fork(): PromptBuilder<TCtx> {
     const forked = new PromptBuilder<TCtx>();
     forked.nodes = deepCopy(this.nodes);
