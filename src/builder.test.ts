@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PromptBuilder } from './builder';
+import { section } from './section';
 import { mockContext } from './testing';
 import type { PromptContext, PromptSection } from './types';
 
@@ -9,7 +10,7 @@ type Ctx = PromptContext<TestFlags, TestVars>;
 
 const ctx = mockContext<TestFlags, TestVars>();
 
-const section = (
+const stub = (
   id: string,
   content: string,
   opts?: Partial<PromptSection<Ctx>>,
@@ -22,16 +23,13 @@ const section = (
 describe('PromptBuilder', () => {
   describe('use', () => {
     it('adds a section and renders it', () => {
-      const result = new PromptBuilder<Ctx>().use(section('a', 'Hello')).build(ctx);
+      const result = new PromptBuilder<Ctx>().use(stub('a', 'Hello')).build(ctx);
 
       expect(result).toBe('Hello');
     });
 
     it('replaces a section with the same id', () => {
-      const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'v1'))
-        .use(section('a', 'v2'))
-        .build(ctx);
+      const result = new PromptBuilder<Ctx>().use(stub('a', 'v1')).use(stub('a', 'v2')).build(ctx);
 
       expect(result).toBe('v2');
     });
@@ -40,8 +38,8 @@ describe('PromptBuilder', () => {
   describe('without', () => {
     it('removes a section by id string', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'Keep'))
-        .use(section('b', 'Remove'))
+        .use(stub('a', 'Keep'))
+        .use(stub('b', 'Remove'))
         .without('b')
         .build(ctx);
 
@@ -49,19 +47,15 @@ describe('PromptBuilder', () => {
     });
 
     it('removes a section by section object', () => {
-      const b = section('b', 'Remove');
-      const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'Keep'))
-        .use(b)
-        .without(b)
-        .build(ctx);
+      const b = stub('b', 'Remove');
+      const result = new PromptBuilder<Ctx>().use(stub('a', 'Keep')).use(b).without(b).build(ctx);
 
       expect(result).toBe('Keep');
     });
 
     it('is a no-op for non-existent ids', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'Keep'))
+        .use(stub('a', 'Keep'))
         .without('nonexistent')
         .build(ctx);
 
@@ -71,12 +65,12 @@ describe('PromptBuilder', () => {
 
   describe('has', () => {
     it('returns true for registered sections by string', () => {
-      const builder = new PromptBuilder<Ctx>().use(section('a', 'test'));
+      const builder = new PromptBuilder<Ctx>().use(stub('a', 'test'));
       expect(builder.has('a')).toBe(true);
     });
 
     it('returns true for registered sections by object', () => {
-      const a = section('a', 'test');
+      const a = stub('a', 'test');
       const builder = new PromptBuilder<Ctx>().use(a);
       expect(builder.has(a)).toBe(true);
     });
@@ -90,9 +84,9 @@ describe('PromptBuilder', () => {
   describe('ids', () => {
     it('returns section ids in insertion order', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('c', ''))
-        .use(section('a', ''))
-        .use(section('b', ''));
+        .use(stub('c', ''))
+        .use(stub('a', ''))
+        .use(stub('b', ''));
 
       expect(builder.ids()).toEqual(['c', 'a', 'b']);
     });
@@ -100,16 +94,16 @@ describe('PromptBuilder', () => {
 
   describe('fork', () => {
     it('creates an independent copy', () => {
-      const base = new PromptBuilder<Ctx>().use(section('a', 'shared'));
-      const variant = base.fork().use(section('b', 'extra'));
+      const base = new PromptBuilder<Ctx>().use(stub('a', 'shared'));
+      const variant = base.fork().use(stub('b', 'extra'));
 
       expect(base.has('b')).toBe(false);
       expect(variant.has('b')).toBe(true);
     });
 
     it('does not affect the original when modified', () => {
-      const base = new PromptBuilder<Ctx>().use(section('a', 'original'));
-      const variant = base.fork().use(section('a', 'modified'));
+      const base = new PromptBuilder<Ctx>().use(stub('a', 'original'));
+      const variant = base.fork().use(stub('a', 'modified'));
 
       expect(base.build(ctx)).toBe('original');
       expect(variant.build(ctx)).toBe('modified');
@@ -119,8 +113,8 @@ describe('PromptBuilder', () => {
   describe('when guards', () => {
     it('excludes sections whose when guard returns false', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'included'))
-        .use(section('b', 'excluded', { when: () => false }))
+        .use(stub('a', 'included'))
+        .use(stub('b', 'excluded', { when: () => false }))
         .build(ctx);
 
       expect(result).toBe('included');
@@ -128,8 +122,8 @@ describe('PromptBuilder', () => {
 
     it('includes sections whose when guard returns true', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'first'))
-        .use(section('b', 'second', { when: () => true }))
+        .use(stub('a', 'first'))
+        .use(stub('b', 'second', { when: () => true }))
         .build(ctx);
 
       expect(result).toBe('first\n\nsecond');
@@ -139,8 +133,8 @@ describe('PromptBuilder', () => {
       const flaggedCtx = mockContext({ flags: { myFlag: true } });
       const unflaggedCtx = mockContext({ flags: { myFlag: false } });
 
-      const builder = new PromptBuilder<Ctx>().use(section('a', 'always')).use(
-        section('b', 'flagged', {
+      const builder = new PromptBuilder<Ctx>().use(stub('a', 'always')).use(
+        stub('b', 'flagged', {
           when: (ctx) => ctx.flags.myFlag === true,
         }),
       );
@@ -153,9 +147,9 @@ describe('PromptBuilder', () => {
   describe('insertion order', () => {
     it('renders sections in insertion order', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'first'))
-        .use(section('b', 'second'))
-        .use(section('c', 'third'))
+        .use(stub('a', 'first'))
+        .use(stub('b', 'second'))
+        .use(stub('c', 'third'))
         .build(ctx);
 
       expect(result).toBe('first\n\nsecond\n\nthird');
@@ -165,9 +159,9 @@ describe('PromptBuilder', () => {
   describe('empty string filtering', () => {
     it('filters out sections that render empty strings', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'keep'))
-        .use(section('b', ''))
-        .use(section('c', 'also keep'))
+        .use(stub('a', 'keep'))
+        .use(stub('b', ''))
+        .use(stub('c', 'also keep'))
         .build(ctx);
 
       expect(result).toBe('keep\n\nalso keep');
@@ -177,9 +171,9 @@ describe('PromptBuilder', () => {
   describe('buildWithMeta', () => {
     it('returns included and excluded section ids', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('a', 'yes'))
-        .use(section('b', 'no', { when: () => false }))
-        .use(section('c', 'yes'));
+        .use(stub('a', 'yes'))
+        .use(stub('b', 'no', { when: () => false }))
+        .use(stub('c', 'yes'));
 
       const meta = builder.buildWithMeta(ctx);
 
@@ -190,9 +184,9 @@ describe('PromptBuilder', () => {
 
     it('excludes sections that render empty strings', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('a', 'content'))
-        .use(section('b', ''))
-        .use(section('c', 'more'));
+        .use(stub('a', 'content'))
+        .use(stub('b', ''))
+        .use(stub('c', 'more'));
 
       const meta = builder.buildWithMeta(ctx);
 
@@ -203,9 +197,9 @@ describe('PromptBuilder', () => {
 
     it('reports included in insertion order', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('c', 'third'))
-        .use(section('a', 'first'))
-        .use(section('b', 'second'));
+        .use(stub('c', 'third'))
+        .use(stub('a', 'first'))
+        .use(stub('b', 'second'));
 
       const meta = builder.buildWithMeta(ctx);
 
@@ -269,7 +263,7 @@ describe('PromptBuilder', () => {
   describe('group', () => {
     it('adds sections inside a group', () => {
       const builder = new PromptBuilder<Ctx>().group('tools', (b) =>
-        b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
+        b.use(stub('bash', 'Bash tools')).use(stub('git', 'Git tools')),
       );
 
       expect(builder.has('tools')).toBe(true);
@@ -279,8 +273,8 @@ describe('PromptBuilder', () => {
 
     it('replaces a group with the same id', () => {
       const builder = new PromptBuilder<Ctx>()
-        .group('tools', (b) => b.use(section('bash', 'Bash v1')))
-        .group('tools', (b) => b.use(section('git', 'Git v2')));
+        .group('tools', (b) => b.use(stub('bash', 'Bash v1')))
+        .group('tools', (b) => b.use(stub('git', 'Git v2')));
 
       expect(builder.has('bash')).toBe(false);
       expect(builder.has('git')).toBe(true);
@@ -288,7 +282,7 @@ describe('PromptBuilder', () => {
 
     it('supports nested groups', () => {
       const builder = new PromptBuilder<Ctx>().group('outer', (b) =>
-        b.use(section('a', 'A')).group('inner', (b) => b.use(section('b', 'B'))),
+        b.use(stub('a', 'A')).group('inner', (b) => b.use(stub('b', 'B'))),
       );
 
       expect(builder.has('outer')).toBe(true);
@@ -299,11 +293,9 @@ describe('PromptBuilder', () => {
 
     it('is transparent in text format', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'first'))
-        .group('tools', (b) =>
-          b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
-        )
-        .use(section('b', 'last'))
+        .use(stub('a', 'first'))
+        .group('tools', (b) => b.use(stub('bash', 'Bash tools')).use(stub('git', 'Git tools')))
+        .use(stub('b', 'last'))
         .build(ctx);
 
       expect(result).toBe('first\n\nBash tools\n\nGit tools\n\nlast');
@@ -313,7 +305,7 @@ describe('PromptBuilder', () => {
   describe('without (groups)', () => {
     it('removes a section inside a group', () => {
       const builder = new PromptBuilder<Ctx>().group('tools', (b) =>
-        b.use(section('bash', 'Bash')).use(section('git', 'Git')),
+        b.use(stub('bash', 'Bash')).use(stub('git', 'Git')),
       );
 
       builder.without('bash');
@@ -324,8 +316,8 @@ describe('PromptBuilder', () => {
 
     it('removes an entire group by id', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('a', 'Keep'))
-        .group('tools', (b) => b.use(section('bash', 'Bash')).use(section('git', 'Git')));
+        .use(stub('a', 'Keep'))
+        .group('tools', (b) => b.use(stub('bash', 'Bash')).use(stub('git', 'Git')));
 
       builder.without('tools');
 
@@ -338,9 +330,9 @@ describe('PromptBuilder', () => {
   describe('ids (groups)', () => {
     it('returns group and child ids in order', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('a', ''))
-        .group('tools', (b) => b.use(section('bash', '')).use(section('git', '')))
-        .use(section('b', ''));
+        .use(stub('a', ''))
+        .group('tools', (b) => b.use(stub('bash', '')).use(stub('git', '')))
+        .use(stub('b', ''));
 
       expect(builder.ids()).toEqual(['a', 'tools', 'bash', 'git', 'b']);
     });
@@ -349,7 +341,7 @@ describe('PromptBuilder', () => {
   describe('fork (groups)', () => {
     it('deep copies groups so modifications are independent', () => {
       const base = new PromptBuilder<Ctx>().group('tools', (b) =>
-        b.use(section('bash', 'Bash')).use(section('git', 'Git')),
+        b.use(stub('bash', 'Bash')).use(stub('git', 'Git')),
       );
       const variant = base.fork().without('bash');
 
@@ -361,7 +353,7 @@ describe('PromptBuilder', () => {
   describe('xml format', () => {
     it('wraps sections in id tags', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('identity', 'You are an assistant.'))
+        .use(stub('identity', 'You are an assistant.'))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<identity>\nYou are an assistant.\n</identity>');
@@ -369,8 +361,8 @@ describe('PromptBuilder', () => {
 
     it('wraps multiple sections with separator', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('role', 'You are helpful.'))
-        .use(section('rules', 'Be concise.'))
+        .use(stub('role', 'You are helpful.'))
+        .use(stub('rules', 'Be concise.'))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<role>\nYou are helpful.\n</role>\n\n<rules>\nBe concise.\n</rules>');
@@ -378,9 +370,7 @@ describe('PromptBuilder', () => {
 
     it('wraps groups in id tags containing children', () => {
       const result = new PromptBuilder<Ctx>()
-        .group('tools', (b) =>
-          b.use(section('bash', 'Bash tools')).use(section('git', 'Git tools')),
-        )
+        .group('tools', (b) => b.use(stub('bash', 'Bash tools')).use(stub('git', 'Git tools')))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe(
@@ -390,9 +380,7 @@ describe('PromptBuilder', () => {
 
     it('renders nested groups', () => {
       const result = new PromptBuilder<Ctx>()
-        .group('outer', (b) =>
-          b.use(section('a', 'A')).group('inner', (b) => b.use(section('b', 'B'))),
-        )
+        .group('outer', (b) => b.use(stub('a', 'A')).group('inner', (b) => b.use(stub('b', 'B'))))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<outer>\n<a>\nA\n</a>\n\n<inner>\n<b>\nB\n</b>\n</inner>\n</outer>');
@@ -400,8 +388,8 @@ describe('PromptBuilder', () => {
 
     it('excludes sections by when guard', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'included'))
-        .use(section('b', 'excluded', { when: () => false }))
+        .use(stub('a', 'included'))
+        .use(stub('b', 'excluded', { when: () => false }))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<a>\nincluded\n</a>');
@@ -409,8 +397,8 @@ describe('PromptBuilder', () => {
 
     it('omits empty groups when all children excluded', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'keep'))
-        .group('tools', (b) => b.use(section('bash', 'hidden', { when: () => false })))
+        .use(stub('a', 'keep'))
+        .group('tools', (b) => b.use(stub('bash', 'hidden', { when: () => false })))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<a>\nkeep\n</a>');
@@ -418,8 +406,8 @@ describe('PromptBuilder', () => {
 
     it('filters empty renders', () => {
       const result = new PromptBuilder<Ctx>()
-        .use(section('a', 'keep'))
-        .use(section('b', ''))
+        .use(stub('a', 'keep'))
+        .use(stub('b', ''))
         .build(ctx, { format: 'xml' });
 
       expect(result).toBe('<a>\nkeep\n</a>');
@@ -427,14 +415,56 @@ describe('PromptBuilder', () => {
 
     it('tracks metadata correctly', () => {
       const builder = new PromptBuilder<Ctx>()
-        .use(section('a', 'yes'))
-        .use(section('b', 'no', { when: () => false }))
-        .group('tools', (b) => b.use(section('bash', 'Bash')).use(section('git', '')));
+        .use(stub('a', 'yes'))
+        .use(stub('b', 'no', { when: () => false }))
+        .group('tools', (b) => b.use(stub('bash', 'Bash')).use(stub('git', '')));
 
       const meta = builder.buildWithMeta(ctx, { format: 'xml' });
 
       expect(meta.included).toEqual(['a', 'bash']);
       expect(meta.excluded).toEqual(['b', 'git']);
+    });
+  });
+
+  describe('section() helper', () => {
+    it('creates a section from a render function', () => {
+      const s = section('greeting', () => 'Hello');
+      const result = new PromptBuilder().use(s).build(ctx);
+
+      expect(result).toBe('Hello');
+    });
+
+    it('excludes when render returns null', () => {
+      const s = section('conditional', () => null);
+      const result = new PromptBuilder().use(s).build(ctx);
+
+      expect(result).toBe('');
+    });
+
+    it('tracks null-returning sections as excluded in metadata', () => {
+      const always = section('always', () => 'yes');
+      const never = section('never', () => null);
+
+      const meta = new PromptBuilder().use(always).use(never).buildWithMeta(ctx);
+
+      expect(meta.included).toEqual(['always']);
+      expect(meta.excluded).toEqual(['never']);
+    });
+
+    it('passes context to the render function', () => {
+      type Vars = { name: string | null };
+      type TestCtx = PromptContext<Record<string, boolean>, Vars>;
+
+      const greeting = section('greeting', (ctx: TestCtx) => {
+        if (ctx.vars.name == null) return null;
+        return `Hello ${ctx.vars.name}`;
+      });
+
+      const withName = mockContext<Record<string, boolean>, Vars>({ vars: { name: 'Claude' } });
+      const withoutName = mockContext<Record<string, boolean>, Vars>({ vars: { name: null } });
+
+      expect(new PromptBuilder<TestCtx>().use(greeting).build(withName)).toBe('Hello Claude');
+      expect(new PromptBuilder<TestCtx>().use(greeting).build(withoutName)).toBe('');
     });
   });
 });
