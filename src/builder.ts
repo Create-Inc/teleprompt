@@ -13,12 +13,28 @@ interface PromptGroup<TCtx extends PromptContext> {
   children: PromptNode<TCtx>[];
 }
 
-type PromptNode<TCtx extends PromptContext> = PromptSection<TCtx> | PromptGroup<TCtx>;
+/** Mutually exclusive sections — the first candidate that renders wins. */
+interface PromptOneOf<TCtx extends PromptContext> {
+  candidates: PromptSection<TCtx>[];
+}
+
+type PromptNode<TCtx extends PromptContext> =
+  | PromptSection<TCtx>
+  | PromptGroup<TCtx>
+  | PromptOneOf<TCtx>;
 
 function isSection<TCtx extends PromptContext>(
   node: PromptNode<TCtx>,
 ): node is PromptSection<TCtx> {
   return 'render' in node;
+}
+
+function isGroup<TCtx extends PromptContext>(node: PromptNode<TCtx>): node is PromptGroup<TCtx> {
+  return 'children' in node;
+}
+
+function isOneOf<TCtx extends PromptContext>(node: PromptNode<TCtx>): node is PromptOneOf<TCtx> {
+  return 'candidates' in node;
 }
 
 /** Supported output formats for prompt rendering. */
@@ -63,12 +79,26 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
    * times with the same section without creating duplicates.
    */
   use(section: PromptSection<TCtx>): this {
-    const idx = this.nodes.findIndex((n) => n.id === section.id);
+    const idx = this.nodes.findIndex((n) => !isOneOf(n) && n.id === section.id);
     if (idx >= 0) {
       this.nodes[idx] = section;
     } else {
       this.nodes.push(section);
     }
+    return this;
+  }
+
+  /**
+   * Add mutually exclusive sections. The first candidate that renders
+   * a non-empty string wins — the rest are excluded.
+   *
+   * @example
+   * ```ts
+   * builder.useOneOf(activeTasks, noActiveTasks)
+   * ```
+   */
+  useOneOf(...candidates: PromptSection<TCtx>[]): this {
+    this.nodes.push({ candidates });
     return this;
   }
 
@@ -89,7 +119,7 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     const inner = new PromptBuilder<TCtx>();
     configure(inner);
     const group: PromptGroup<TCtx> = { id, children: inner.nodes };
-    const idx = this.nodes.findIndex((n) => n.id === id);
+    const idx = this.nodes.findIndex((n) => !isOneOf(n) && n.id === id);
     if (idx >= 0) {
       this.nodes[idx] = group;
     } else {
@@ -98,20 +128,20 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
     return this;
   }
 
-  /** Remove a section or group. Accepts an id string or an object with `id`. Searches recursively into groups. */
+  /** Remove a section or group. Accepts an id string or an object with `id`. Searches recursively into groups and oneOf candidates. */
   without(ref: string | { id: string }): this {
     const id = typeof ref === 'string' ? ref : ref.id;
     this.nodes = this.removeNode(this.nodes, id);
     return this;
   }
 
-  /** Check if a section or group exists. Accepts an id string or an object with `id`. Searches recursively into groups. */
+  /** Check if a section or group exists. Accepts an id string or an object with `id`. Searches recursively into groups and oneOf candidates. */
   has(ref: string | { id: string }): boolean {
     const id = typeof ref === 'string' ? ref : ref.id;
     return this.hasNode(this.nodes, id);
   }
 
-  /** Get all ids (sections and groups) in order, including children of groups. */
+  /** Get all ids (sections, groups, and oneOf candidates) in order. */
   ids(): string[] {
     return this.collectIds(this.nodes);
   }
@@ -187,26 +217,60 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
 
     for (const node of nodes) {
       if (isSection(node)) {
-        if (node.when && !node.when(ctx)) {
-          excluded.push(node.id);
-          continue;
-        }
-        const output = node.render(ctx);
-        if (output) {
-          included.push(node.id);
-          parts.push(this.formatSection(node.id, output, format));
-        } else {
-          excluded.push(node.id);
-        }
-      } else {
+        this.renderSection(node, ctx, format, parts, included, excluded);
+      } else if (isGroup(node)) {
         const childParts = this.renderNodes(node.children, ctx, format, included, excluded);
         if (childParts.length > 0) {
           parts.push(...this.formatGroup(node.id, childParts, format));
         }
+      } else {
+        this.renderOneOf(node, ctx, format, parts, included, excluded);
       }
     }
 
     return parts;
+  }
+
+  private renderSection(
+    section: PromptSection<TCtx>,
+    ctx: TCtx,
+    format: PromptFormat,
+    parts: string[],
+    included: string[],
+    excluded: string[],
+  ): boolean {
+    if (section.when && !section.when(ctx)) {
+      excluded.push(section.id);
+      return false;
+    }
+    const output = section.render(ctx);
+    if (output) {
+      included.push(section.id);
+      parts.push(this.formatSection(section.id, output, format));
+      return true;
+    }
+    excluded.push(section.id);
+    return false;
+  }
+
+  private renderOneOf(
+    node: PromptOneOf<TCtx>,
+    ctx: TCtx,
+    format: PromptFormat,
+    parts: string[],
+    included: string[],
+    excluded: string[],
+  ): void {
+    let found = false;
+    for (const candidate of node.candidates) {
+      if (found) {
+        excluded.push(candidate.id);
+        continue;
+      }
+      if (this.renderSection(candidate, ctx, format, parts, included, excluded)) {
+        found = true;
+      }
+    }
   }
 
   /** Wrap a single section's rendered content according to the output format. */
@@ -239,29 +303,49 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
 
   private hasNode(nodes: PromptNode<TCtx>[], id: string): boolean {
     for (const node of nodes) {
-      if (node.id === id) return true;
-      if (!isSection(node) && this.hasNode(node.children, id)) return true;
+      if (isSection(node)) {
+        if (node.id === id) return true;
+      } else if (isGroup(node)) {
+        if (node.id === id) return true;
+        if (this.hasNode(node.children, id)) return true;
+      } else {
+        for (const c of node.candidates) {
+          if (c.id === id) return true;
+        }
+      }
     }
     return false;
   }
 
   private removeNode(nodes: PromptNode<TCtx>[], id: string): PromptNode<TCtx>[] {
-    return nodes
-      .filter((n) => n.id !== id)
-      .map((n) => {
-        if (!isSection(n)) {
-          return { ...n, children: this.removeNode(n.children, id) };
+    const result: PromptNode<TCtx>[] = [];
+    for (const n of nodes) {
+      if (isSection(n)) {
+        if (n.id !== id) result.push(n);
+      } else if (isGroup(n)) {
+        if (n.id !== id) {
+          result.push({ ...n, children: this.removeNode(n.children, id) });
         }
-        return n;
-      });
+      } else {
+        const remaining = n.candidates.filter((c) => c.id !== id);
+        if (remaining.length > 0) {
+          result.push({ candidates: remaining });
+        }
+      }
+    }
+    return result;
   }
 
   private collectIds(nodes: PromptNode<TCtx>[]): string[] {
     const ids: string[] = [];
     for (const node of nodes) {
-      ids.push(node.id);
-      if (!isSection(node)) {
+      if (isSection(node)) {
+        ids.push(node.id);
+      } else if (isGroup(node)) {
+        ids.push(node.id);
         ids.push(...this.collectIds(node.children));
+      } else {
+        ids.push(...node.candidates.map((c) => c.id));
       }
     }
     return ids;
@@ -269,8 +353,11 @@ export class PromptBuilder<TCtx extends PromptContext = PromptContext> {
 
   private deepCopy(nodes: PromptNode<TCtx>[]): PromptNode<TCtx>[] {
     return nodes.map((n) => {
-      if (!isSection(n)) {
+      if (isGroup(n)) {
         return { ...n, children: this.deepCopy(n.children) };
+      }
+      if (isOneOf(n)) {
+        return { candidates: [...n.candidates] };
       }
       return n;
     });

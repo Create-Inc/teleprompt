@@ -467,4 +467,106 @@ describe('PromptBuilder', () => {
       expect(new PromptBuilder<TestCtx>().use(greeting).build(withoutName)).toBe('');
     });
   });
+
+  describe('useOneOf', () => {
+    it('renders the first matching candidate', () => {
+      const a = stub('a', '', { when: () => false });
+      const b = stub('b', 'B wins');
+
+      const result = new PromptBuilder<Ctx>().useOneOf(a, b).build(ctx);
+
+      expect(result).toBe('B wins');
+    });
+
+    it('stops after the first match', () => {
+      const a = stub('a', 'A wins');
+      const b = stub('b', 'B loses');
+
+      const result = new PromptBuilder<Ctx>().useOneOf(a, b).build(ctx);
+
+      expect(result).toBe('A wins');
+    });
+
+    it('tracks metadata correctly', () => {
+      const a = stub('a', 'A wins');
+      const b = stub('b', 'B loses');
+      const c = stub('c', 'C loses');
+
+      const meta = new PromptBuilder<Ctx>().useOneOf(a, b, c).buildWithMeta(ctx);
+
+      expect(meta.included).toEqual(['a']);
+      expect(meta.excluded).toEqual(['b', 'c']);
+    });
+
+    it('excludes all candidates when none match', () => {
+      const a = stub('a', '');
+      const b = stub('b', '');
+
+      const meta = new PromptBuilder<Ctx>().useOneOf(a, b).buildWithMeta(ctx);
+
+      expect(meta.prompt).toBe('');
+      expect(meta.excluded).toEqual(['a', 'b']);
+    });
+
+    it('works with section() helper null returns', () => {
+      type Vars = { count: number };
+      type TestCtx = PromptContext<Record<string, boolean>, Vars>;
+
+      const hasTasks = section('has-tasks', (ctx: TestCtx) => {
+        if (ctx.vars.count === 0) return null;
+        return `${ctx.vars.count} tasks`;
+      });
+      const noTasks = section('no-tasks', () => 'No tasks');
+
+      const withTasks = mockContext<Record<string, boolean>, Vars>({ vars: { count: 3 } });
+      const withoutTasks = mockContext<Record<string, boolean>, Vars>({ vars: { count: 0 } });
+
+      const builder = new PromptBuilder<TestCtx>().useOneOf(hasTasks, noTasks);
+
+      expect(builder.build(withTasks)).toBe('3 tasks');
+      expect(builder.build(withoutTasks)).toBe('No tasks');
+    });
+
+    it('has() finds candidates inside oneOf', () => {
+      const builder = new PromptBuilder<Ctx>().useOneOf(stub('a', 'A'), stub('b', 'B'));
+
+      expect(builder.has('a')).toBe(true);
+      expect(builder.has('b')).toBe(true);
+    });
+
+    it('without() removes a candidate from oneOf', () => {
+      const builder = new PromptBuilder<Ctx>().useOneOf(stub('a', 'A'), stub('b', 'B'));
+
+      builder.without('a');
+
+      expect(builder.has('a')).toBe(false);
+      expect(builder.has('b')).toBe(true);
+      expect(builder.build(ctx)).toBe('B');
+    });
+
+    it('ids() returns candidate ids', () => {
+      const builder = new PromptBuilder<Ctx>()
+        .use(stub('x', ''))
+        .useOneOf(stub('a', ''), stub('b', ''));
+
+      expect(builder.ids()).toEqual(['x', 'a', 'b']);
+    });
+
+    it('fork() deep copies oneOf', () => {
+      const base = new PromptBuilder<Ctx>().useOneOf(stub('a', 'A'), stub('b', 'B'));
+      const variant = base.fork().without('a');
+
+      expect(base.has('a')).toBe(true);
+      expect(variant.has('a')).toBe(false);
+    });
+
+    it('works with xml format', () => {
+      const a = stub('a', '', { when: () => false });
+      const b = stub('b', 'B wins');
+
+      const result = new PromptBuilder<Ctx>().useOneOf(a, b).build(ctx, { format: 'xml' });
+
+      expect(result).toBe('<b>\nB wins\n</b>');
+    });
+  });
 });
