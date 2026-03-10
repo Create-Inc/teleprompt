@@ -29,7 +29,7 @@
       }
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": ["dist", "README.md", "LICENSE", "llms.txt"],
   "scripts": {
     "build": "tsup",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm publint && pnpm attw",

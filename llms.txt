@@ -1,0 +1,183 @@
+# teleprompt
+
+Composable, section-based LLM system prompts. Published as `@anythingai/teleprompt`.
+
+## Core Concepts
+
+**Section** — a named unit of prompt content with an id and a render function. Return a string to include, `null` to exclude.
+
+**PromptBuilder** — composes sections in order. Supports groups, mutual exclusion, forking, and removal.
+
+**PromptContext** — typed object with `flags` (booleans) and `vars` (arbitrary data) passed to every section's render function.
+
+## Idiomatic Usage
+
+### Define a context type for your application
+
+```ts
+import { type PromptContext } from "@anythingai/teleprompt";
+
+type Flags = { webSearchEnabled: boolean; verbose: boolean };
+type Vars = { userName: string; tasks: Task[] };
+type Ctx = PromptContext<Flags, Vars>;
+```
+
+### Create sections with the `section()` helper
+
+```ts
+import { section } from "@anythingai/teleprompt";
+
+// Static — no context needed, works in any builder
+const guidelines = section("guidelines", () => `Be concise and direct.`);
+
+// Dynamic — reads from context
+const identity = section("identity", (ctx: Ctx) =>
+  `You are ${ctx.vars.userName}'s assistant.`
+);
+
+// Conditional — return null to exclude
+const webSearch = section("web-search", (ctx: Ctx) => {
+  if (!ctx.flags.webSearchEnabled) return null;
+  return "You have access to web search.";
+});
+```
+
+### Compose with PromptBuilder
+
+```ts
+import { PromptBuilder } from "@anythingai/teleprompt";
+
+const builder = new PromptBuilder<Ctx>()
+  .use(identity)
+  .use(guidelines)
+  .use(webSearch)
+  .group("tools", (b) => b.use(bashTool).use(gitTool))
+  .useOneOf(hasTasks, noTasks);
+
+const prompt = builder.build(ctx);
+const xmlPrompt = builder.build(ctx, { format: "xml" });
+```
+
+### Fork for variants
+
+```ts
+const base = new PromptBuilder<Ctx>().use(identity).use(guidelines).use(tone);
+
+const supportAgent = base.fork().use(escalationPolicy);
+const codeAgent = base.fork().without(tone).use(codingRules);
+```
+
+## Patterns and Rationale
+
+### Use null returns for conditional sections, not the `when` guard
+
+The `section()` helper colocates the condition with the content it guards, making sections self-contained and easier to reason about. The `when` field exists on the raw PromptSection interface for programmatic use cases, but `section()` with null returns is the standard path because it keeps each section's logic in one place.
+
+```ts
+// Preferred — condition and content together
+const verbose = section("verbose", (ctx: Ctx) => {
+  if (!ctx.flags.verbose) return null;
+  return "Show detailed explanations.";
+});
+
+// Avoid — splits the condition from the content it controls
+const verbose: PromptSection<Ctx> = {
+  id: "verbose",
+  when: (ctx) => ctx.flags.verbose,
+  render: () => "Show detailed explanations.",
+};
+```
+
+### Keep sections small and focused
+
+Each section should own one concern. This makes sections independently reusable across builder variants (via `fork`, `without`, `use`) and gives `buildWithMeta` meaningful granularity — you can see exactly which capabilities were included or excluded. A monolithic section that concatenates everything defeats both of these.
+
+```ts
+// Preferred — each concern is a composable unit
+const identity = section("identity", (ctx: Ctx) => `You are ${ctx.vars.userName}'s assistant.`);
+const guidelines = section("guidelines", () => "# Guidelines\n- Be concise.");
+const webSearch = section("web-search", (ctx: Ctx) => {
+  if (!ctx.flags.webSearchEnabled) return null;
+  return "You can search the web.";
+});
+```
+
+### Return null rather than empty string for absent content
+
+Returning `null` from `section()` signals intentional exclusion — the section is tracked as "excluded" in `buildWithMeta`, which is useful for debugging and observability. An empty string is ambiguous (is it a bug or intentional?) and still occupies a slot in the output.
+
+```ts
+// Preferred — null signals intentional absence, tracked in metadata
+const tools = section("tools", (ctx: Ctx) => {
+  if (!ctx.flags.webSearchEnabled) return null;
+  return "You can search the web.";
+});
+
+// Avoid — empty string is ambiguous and not tracked as excluded
+const tools = section("tools", (ctx: Ctx) =>
+  ctx.flags.webSearchEnabled ? "You can search the web." : ""
+);
+```
+
+### Let the builder handle composition
+
+The builder manages section ordering, format wrapping (text vs XML), joining, and metadata tracking. Calling `render` directly on sections bypasses all of this — you lose format support, metadata, and the ability to fork or modify the composition.
+
+```ts
+// Preferred — builder handles joining, format, and metadata
+const prompt = new PromptBuilder<Ctx>().use(identity).use(guidelines).build(ctx);
+
+// Avoid — bypasses composition, forking, and metadata tracking
+const prompt = identity.render(ctx) + "\n\n" + guidelines.render(ctx);
+```
+
+## API Reference
+
+### `section(id, render)`
+
+Creates a PromptSection. `render` receives context, returns `string | null`.
+
+### `PromptBuilder<TCtx>`
+
+- `.use(section)` — append or replace by id
+- `.useOneOf(...sections)` — first non-empty render wins
+- `.group(id, configure)` — named group (XML wrapper in xml format, transparent in text)
+- `.without(id | section)` — remove by id, searches recursively
+- `.has(id | section)` — check existence
+- `.ids()` — list all section ids
+- `.fork()` — independent deep copy
+- `.build(ctx)` — render to string (text format)
+- `.build(ctx, { format: "xml" })` — render with XML tags
+- `.buildWithMeta(ctx)` — returns `{ prompt, included, excluded }`
+
+### `PromptContext<TFlags, TVars>`
+
+```ts
+interface PromptContext<
+  TFlags extends Record<string, boolean>,
+  TVars extends Record<string, unknown>,
+> {
+  flags: TFlags;
+  vars: TVars;
+}
+```
+
+Both type parameters default to open records, so `new PromptBuilder()` works without a type argument for simple cases.
+
+## Testing
+
+```ts
+import { mockContext, renderSection } from "@anythingai/teleprompt/testing";
+
+// Render a single section in isolation
+const output = renderSection(webSearch, { flags: { webSearchEnabled: true } });
+
+// Assert on builder metadata
+const { included, excluded } = builder.buildWithMeta(ctx);
+```
+
+## Output Formats
+
+**text** (default) — sections joined with `\n\n`, groups are transparent.
+
+**xml** — each section wrapped in `<id>...</id>`, groups wrap children in `<id>...</id>`. Recommended for Claude and Gemini which handle XML-structured prompts well.
