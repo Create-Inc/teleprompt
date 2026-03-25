@@ -1,6 +1,6 @@
 {
   "name": "@anythingai/teleprompt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Composable, declarative prompt builder for LLM system prompts",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -29,7 +29,12 @@
       }
     }
   },
-  "files": ["dist", "README.md", "LICENSE", "llms.txt"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "llms.txt"
+  ],
   "scripts": {
     "build": "tsup",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm publint && pnpm attw",
@@ -61,7 +66,10 @@
     "node": ">=20"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.17.0",
