@@ -1,6 +1,6 @@
 export interface PromptContext<
   TFlags extends Record<string, boolean> = Record<string, boolean>,
-  TVars extends Record<string, unknown> = Record<string, unknown>,
+  TVars extends object = Record<string, unknown>,
 > {
   flags: TFlags;
   vars: TVars;

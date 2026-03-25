@@ -155,7 +155,7 @@ Creates a PromptSection. `render` receives context, returns `string | null`.
 ```ts
 interface PromptContext<
   TFlags extends Record<string, boolean>,
-  TVars extends Record<string, unknown>,
+  TVars extends object,
 > {
   flags: TFlags;
   vars: TVars;
